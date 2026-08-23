@@ -94,13 +94,57 @@ function explainDirectFailure(response, body) {
 const PROXY_PATH = '/dsh-plugin-playwithai-hub/api/articles'
 
 /**
+ * True when a proxied 200 body is a REAL read-API payload: the merged list
+ * (`{articles:[…]}`), a single article object (`{id,…}`), or an upstream
+ * error object (`{error}`). The pre-proxy host half echoes the config JSON
+ * (`{ok:true,…}`) for every prefix path — exactly these markers are absent
+ * there, which is how a stale host is detected without misreading detail
+ * payloads (a single article has no `articles` array).
+ */
+function isRealPayload(body) {
+  return (
+    body !== null &&
+    typeof body === 'object' &&
+    !Array.isArray(body) &&
+    ('articles' in body || 'id' in body || 'error' in body)
+  )
+}
+
+/** True for the old host half's config echo (stale host marker). */
+function isStaleConfigEcho(body) {
+  return (
+    body !== null &&
+    typeof body === 'object' &&
+    !Array.isArray(body) &&
+    body.ok === true &&
+    !('articles' in body) &&
+    !('id' in body)
+  )
+}
+
+/** Turns proxied HTTP failures into actionable zh-CN messages. */
+function explainProxyFailure(response, body) {
+  const detail = typeof body?.error === 'string' ? body.error : ''
+  if (response.status === 401) {
+    return new Error(
+      detail ||
+        '读请求被拒：宿主未配置共享密钥，你也尚未在 ⚙ 设置里填入个人 pwai_ 密钥（需勾选「读」权限）。',
+    )
+  }
+  if (response.status === 403) return new Error('该 API 密钥没有「读」权限，请在资源站后台重新创建勾选读取权限的密钥。')
+  if (response.status === 429) return new Error('请求过于频繁，请稍后重试。')
+  return new Error(detail ? `${response.status} ${detail}` : `HTTP ${response.status}`)
+}
+
+/**
  * Read-API call, same-origin proxy first: the host half relays the Edge
  * Function server-side and injects its own configured key when the caller has
- * none. Falls back to a direct Edge-Function call when the proxy is
- * unavailable (network error), missing (older host half → 404) or STALE
- * (pre-proxy host answers every prefix path with the config JSON — detected
- * by shape); the direct path relies on the loopback CORS allowance of the
- * read API.
+ * none. Falls back to a direct Edge-Function call only when the proxy is
+ * unreachable (network error), missing (older host half → 404) or STALE
+ * (pre-proxy host answers every prefix path with the config JSON); the direct
+ * path relies on the loopback CORS allowance of the read API. Proxied
+ * successes AND errors are adopted as-is — a detail payload (single object)
+ * must never be mistaken for a stale echo and pushed to a cross-origin call.
  */
 async function callReadApi(config, params) {
   const headers = { accept: 'application/json' }
@@ -112,18 +156,27 @@ async function callReadApi(config, params) {
     return callReadApiDirect(config, params)
   }
   if (response.status === 404) return callReadApiDirect(config, params)
+
   let body = null
   try {
     body = await response.json()
   } catch {
-    /* non-JSON bodies fall through to status-only messages */
+    /* non-JSON bodies fall through to the checks below */
   }
-  if (response.ok && body !== null && typeof body === 'object' && Array.isArray(body.articles)) return body
-  // A 200 without an articles array from the proxy means the running host
-  // half predates the read proxy (it echoes the config route). Restart DSH to
-  // load the new host bundle; meanwhile try the direct path.
-  console.warn('[pwa-hub] proxy answered but not an articles payload — stale host half? restarting DSH reloads it.')
-  return callReadApiDirect(config, params, true)
+
+  // Pre-proxy host half: echoes the config route for every prefix path.
+  if (isStaleConfigEcho(body)) {
+    console.warn('[pwa-hub] proxy echoed config — stale host half detected; restarting DSH reloads it.')
+    return callReadApiDirect(config, params, true)
+  }
+  // Real proxy answer (payload or upstream error with preserved status).
+  if (isRealPayload(body) || (body !== null && typeof body === 'object')) {
+    if (!response.ok) throw explainProxyFailure(response, body)
+    return body
+  }
+  // Non-JSON / empty answer: proxy exists but answered oddly — try direct.
+  console.warn('[pwa-hub] proxy returned an unusable body; falling back to direct call.')
+  return callReadApiDirect(config, params)
 }
 
 /** Direct Edge-Function call (fallback; requires a personal key + loopback). */
