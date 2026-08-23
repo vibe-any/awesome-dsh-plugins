@@ -1,0 +1,10 @@
+# dsh-plugin-playwithai-hub bundle patch: inserts the plugin row into the web
+# profile roster (applied as a profile bundle layer via the `dsh.bundle.patch`
+# manifest field). Install with `dsh plugin --profile web add <npm|link|dir>`.
+#
+# The row is a bare plugin by package name: the node half (exports ".") runs in
+# the host process (config route), and the `dsh.client` declaration in
+# package.json makes the browser half (exports "./client") load in the web GUI.
+- insert:
+    - id: dsh-plugin-playwithai-hub
+      name: dsh-plugin-playwithai-hub

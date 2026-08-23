@@ -1,0 +1,48 @@
+{
+  "name": "dsh-plugin-playwithai-hub",
+  "description": "DSH Web GUI 插件「PlayWithAI资源站」：左侧菜单入口点开文章浏览器——卡片/列表双视图、封面、标题、摘要、作者、日期，点击在右侧悬浮栏阅读详情；展示 PlayWithAI 资源站 logo 与 slogan，数据经宿主同源代理走站点 token 读 API（本地/云端部署均免 CORS 配置）。",
+  "version": "0.3.0",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "build": "node build.mjs",
+    "prepublishOnly": "node build.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "deepseek-harness",
+    "dsh-plugin",
+    "dsh-web",
+    "playwithai",
+    "article-reader"
+  ],
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [],
+      "platform": "web"
+    }
+  },
+  "files": [
+    "lib",
+    "src",
+    "cordis.patch.yml",
+    "README.md"
+  ],
+  "license": "MIT"
+}
