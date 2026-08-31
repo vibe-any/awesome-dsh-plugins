@@ -1,0 +1,18 @@
+# Bundle patch layer: `insert` adds this plugin as a composition entry.
+#
+# `insert:` is required. A patch entry without it means "override the entry with
+# this id", and a missing target only warns (`patch: entry <id> not found`)
+# before being skipped -- the plugin would install but never load.
+#
+# The entry is also what makes the browser half reachable: only a package that
+# is a host Loader entry gets scanned by dsh-client-modules for its `dsh.client`
+# declaration, which is what serves /plugins/dsh-mvp-factory/client.js.
+- insert:
+    - id: mvp-factory
+      name: 'dsh-mvp-factory'
+      # config:
+      #   # State root holding runs/*.json and settings.json.
+      #   # Defaults to $DSH_HOME/mvp-factory
+      #   root: '/absolute/path/to/mvp-factory'
+      #   # Ceiling for one stored run document, in bytes (default 4194304).
+      #   maxRunBytes: 4194304
